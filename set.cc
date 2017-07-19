@@ -2,9 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-// Cards are represented by the following bitmap:
-// RGB123HSFPDQ. Valid cards have exactly one bit set per triplet.
-// Valid sets have (for each triplet) a|b|c == 0b111 || a&b&c != 0;
+// Card represents one card in the Set deck.
+// Attributes are stored as integers, either 1, 2, or 4.
 class Card {
  public:
   int color;
@@ -27,12 +26,12 @@ void print_card(Card* card) {
     return;
   }
   switch(card->color) {
-    case 1: printf("\x1b[31m"); break;
-    case 2: printf("\x1b[32m"); break;
-    default: printf("\x1b[35m"); break;
+    case 1: printf("\x1b[31m"); break; // Red.
+    case 2: printf("\x1b[32m"); break; // Green.
+    default: printf("\x1b[35m"); break; // Magenta.
   }
-  char const * shape;
-  const char *blank = " ";
+
+  char const *shape;
   switch(card->shape) {
     case 1: switch (card->filling) {
       case 1: shape = "○"; break;
@@ -51,12 +50,10 @@ void print_card(Card* card) {
     }; break;
   }
 
-  char picture[4];
-  sprintf(picture, "%s%s%s",
-    shape, 
-    card->number > 1 ? shape : blank,
-    card->number > 2 ? shape : blank);
-  printf("(%s)", picture);
+  printf("(%s%s%s)",
+         shape, 
+         card->number > 1 ? shape : " ",
+         card->number > 2 ? shape : " ");
   printf("\x1b[0m");
 }
 
@@ -197,30 +194,22 @@ void verify_deck(Card *deck) {
   }
 }
 
-int main() {
+int main(int argc, char **argv) {
+  // We use random numbers for shuffling.
   srand(time(NULL));
+
   Card deck[81];
   fill_deck(deck);
 
-#if 0
-  int counts[10];
-#define ITERATIONS 10000
-  for(int i = 0; i < ITERATIONS; i++ ) {
-    shuffle_deck(deck);
-    int count = count_sets(deck, 81);
-    counts[count] ++;
+  // Parse command-line parameters.
+  int iterations = 0;
+  if(argc != 2 || sscanf(argv[1], "%d", &iterations) != 1) {
+    printf("Usage: %s ITERATIONS\n", argv[0]);
+    exit(1);
   }
-  for(int j = 0; j<10; j++) {
-    float percent = counts[j];
-    percent =percent/ ITERATIONS * 100;
-    printf("(%d:%2.2f)", j, percent);
-  }
-  printf("\n");
-#endif
 
-#define ITERATIONS 10000
   int counts[7];
-  for(int i = 0; i < ITERATIONS; i++) {
+  for(int i = 0; i < iterations; i++) {
     fill_deck(deck);
     shuffle_deck(deck);
     verify_deck(deck);
@@ -234,7 +223,7 @@ int main() {
   printf("\n\n");
   for(int j = 0; j < 7; j++) {
     float percent = counts[j];
-    percent =percent/ ITERATIONS * 100;
+    percent =percent/ iterations * 100;
     printf("(%d:%2.2f)\n", j*3, percent);
   }
   printf("\n\n");
