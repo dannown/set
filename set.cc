@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <ncurses.h>
+
 // Card represents one card in the Set deck.
 // Attributes are stored as integers, either 1, 2, or 4.
 class Card {
@@ -22,14 +24,10 @@ class Card {
 
 void print_card(Card* card) {
   if(card->number == 0) {
-    printf("     ");
+    printw("     ");
     return;
   }
-  switch(card->color) {
-    case 1: printf("\x1b[31m"); break; // Red.
-    case 2: printf("\x1b[32m"); break; // Green.
-    default: printf("\x1b[35m"); break; // Magenta.
-  }
+  attron(COLOR_PAIR(card->color));
 
   char const *shape;
   switch(card->shape) {
@@ -50,11 +48,11 @@ void print_card(Card* card) {
     }; break;
   }
 
-  printf("(%s%s%s)",
+  printw("(%s%s%s)",
          shape, 
          card->number > 1 ? shape : " ",
          card->number > 2 ? shape : " ");
-  printf("\x1b[0m");
+  attroff(COLOR_PAIR(card->color));
 }
 
 bool is_set(Card*a, Card*b, Card*c) {
@@ -73,22 +71,24 @@ void print_deck(Card *cards,
                 int cards_out,
                 int cards_left,
                 bool print_cards = true) {
-  printf("Table:\n");
+//  clear();
+  printw("Table:\n");
   for(int i = 0; i < cards_out/3; i++) {
     for(int j = 0; j < 3; j++) {
       print_card(cards + i*3 + j);
     }
-    printf("\n");
+    printw("\n");
   }
   if(!print_cards)
     return;
-  printf("-------------\n");
-  printf("Deck: ");
+  printw("-------------\n");
+  printw("Deck: ");
   for(int i = cards_out; i < cards_left; i++) {
     print_card(cards + i);
   }
-  printf("\n");
-  printf("=============\n");
+  printw("\n");
+  printw("=============\n");
+  refresh();
 }
 
 int count_sets(Card* cards, int cards_out) {
@@ -97,11 +97,11 @@ int count_sets(Card* cards, int cards_out) {
     for(int j = i+1; j < cards_out-1; j++) {
       for(int k = j+1; k < cards_out; k++) {
         if(is_set(cards+i, cards+j, cards+k)) {
-          printf("Found set: ");
+          printw("Found set: ");
           print_card(cards+i);
           print_card(cards+j);
           print_card(cards+k);
-          printf("\n");
+          printw("\n");
           total++;
         }
       }
@@ -113,24 +113,24 @@ int count_sets(Card* cards, int cards_out) {
 
 bool find_sets(Card* cards, int cards_out, int *cards_left) {
   if(cards_out > 15) {
-    printf("Lots of cards out.\n");
+    printw("Lots of cards out.\n");
   }
   print_deck(cards, cards_out, *cards_left);
-  printf("Found %d sets\n", count_sets(cards, cards_out));
+  printw("Found %d sets\n", count_sets(cards, cards_out));
   for(int i = 0; i < cards_out-2; i++) {
     for(int j = i+1; j < cards_out-1; j++) {
       for(int k = j+1; k < cards_out; k++) {
         if(is_set(cards+i, cards+j, cards+k)) {
-          printf("Retrieving set:");
+          printw("Retrieving set:");
           print_card(cards+i);
           print_card(cards+j);
           print_card(cards+k);
-          printf("\n-=-=-=\n");
+          printw("\n-=-=-=\n");
           cards[i].number = 0;
           cards[j].number = 0;
           cards[k].number = 0;
           print_deck(cards, cards_out, *cards_left, false);
-          printf("\n=-=-=-\n");
+          printw("\n=-=-=-\n");
           // Do we have any cards left?
           if(*cards_left > cards_out && cards_out < 15) {
             cards[i] = cards[*cards_left-1];
@@ -159,7 +159,7 @@ bool find_sets(Card* cards, int cards_out, int *cards_left) {
   }
   // We couldn't find cards.
   if(cards_out < *cards_left) {
-    printf("No set.\n");
+    printw("No set.\n");
     return find_sets(cards, cards_out+3, cards_left);
   }
   return false;
@@ -188,10 +188,24 @@ void verify_deck(Card *deck) {
   for(int i = 0; i < 80; i++) {
     for(int j = i+1; j < 81; j++) {
       if(deck[i] == deck[j]) {
-        printf("Deck has dupes!\n");
+        printw("Deck has dupes!\n");
       }
     }
   }
+}
+
+void init_display() {
+  // Get ncurses started.
+  initscr();
+  start_color();
+  init_pair(1, COLOR_RED, COLOR_WHITE);
+  init_pair(2, COLOR_GREEN, COLOR_WHITE);
+  init_pair(4, COLOR_MAGENTA, COLOR_WHITE);
+}
+
+void finalize_display() {
+  refresh();
+  endwin();
 }
 
 int main(int argc, char **argv) {
@@ -200,11 +214,14 @@ int main(int argc, char **argv) {
 
   Card deck[81];
   fill_deck(deck);
+  
+  init_display();
 
   // Parse command-line parameters.
   int iterations = 0;
   if(argc != 2 || sscanf(argv[1], "%d", &iterations) != 1) {
-    printf("Usage: %s ITERATIONS\n", argv[0]);
+    printw("Usage: %s ITERATIONS\n", argv[0]);
+    finalize_display();
     exit(1);
   }
 
@@ -217,14 +234,16 @@ int main(int argc, char **argv) {
     while(find_sets(deck, cards_left < 12 ? cards_left : 12, &cards_left)) {
     }
     // Ran out of cards.
-    printf("Remaining cards: [%d]\n", cards_left);
+    printw("Remaining cards: [%d]\n", cards_left);
     counts[cards_left/3] ++;
   }
-  printf("\n\n");
+  printw("\n\n");
   for(int j = 0; j < 7; j++) {
     float percent = counts[j];
     percent =percent/ iterations * 100;
-    printf("(%d:%2.2f)\n", j*3, percent);
+    printw("(%d:%2.2f)\n", j*3, percent);
   }
-  printf("\n\n");
+  printw("\n\n");
+
+  finalize_display();
 }
